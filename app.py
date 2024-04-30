@@ -1,32 +1,45 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
-import random,string, hashlib
-import validation, os
+import random
+import string
+import validation
+import os
 from user import Client, Admin
 from datetime import timedelta
+import bcrypt
+from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
 
-hehe = "".join(random.choices(string.ascii_lowercase+string.ascii_uppercase+string.digits,k=1000))
+
+hehe = "".join(random.choices(string.ascii_lowercase+string.ascii_uppercase+string.digits, k=1000))
 print(hehe)
 app.secret_key = hehe
+
+csrf = CSRFProtect()
+csrf.init_app(app)
+
+
 # Enter your database connection details below
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
 # Password below must be changed to match root password specified at server installation
 # Lab computers use the root password `mysql`
-app.config['MYSQL_PASSWORD'] = 'Jameskayle23!'#Password is in group chat,, idk if people can hack or not
+app.config['MYSQL_PASSWORD'] = 'Jameskayle23!'  # Password is in group chat, I don't know if people can hack or not
 app.config['MYSQL_DB'] = 'pythonlogin'
-#Session Timeout
+# Session Timeout
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=10)
-app.config['MYSQL_PORT'] = 3306 #DO NOTE THAT THE MYSQL SERVER INSTANCE IN THE LAB IS RUNNING ON PORT 3360.
-# Intialize MySQL
+app.config['MYSQL_PORT'] = 3306  # DO NOTE THAT THE MYSQL SERVER INSTANCE IN THE LAB IS RUNNING ON PORT 3360.
+# Initialize MySQL
 mysql = MySQL(app)
+user = None
+
 
 @app.route("/")
 def index():
     return redirect(url_for("login"))
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -35,26 +48,29 @@ def login():
     form = validation.LoginForm(request.form)
 
     if request.method == "POST" and form.validate():
-        print("hello world")
         username = form.username.data
         password = form.password.data
-        #Password Hashing + Salting
-        password = hashlib.sha256((password+" meow").encode())
-        password = password.hexdigest()
+        # Password Hashing + Salting
+        # salting
+        salt = bcrypt.gensalt()
+        # Hashing
+        password = bcrypt.hashpw(password, salt)
 
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM client WHERE name = %s AND password = %s",(username,password,))
+        cursor.execute("SELECT * FROM client WHERE name = %s AND password = %s", (username, password,))
         account = cursor.fetchone()
         if account:
             session["loggedin"] = True
-            #Start clock for session timeout
+            # Start clock for session timeout
             session.permanent = True
             session['id'] = account['id']
             session["username"] = account['name']
             global user
-            user = Client(account['id'],account["name"],account['email'],account['card'],account['membership'],account["points"])
-
+            user = Client(account['id'], account["name"],
+                          account['email'], account['card'],
+                          account['membership'], account["points"])
             return redirect(url_for("home"))
+
         else:
             cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
             cursor.execute("SELECT * FROM admin WHERE name = %s AND password = %s", (username, password,))
@@ -65,7 +81,10 @@ def login():
                 session.permanent = True
                 session['id'] = account['id']
                 session["username"] = account['name']
-                user = Admin(account["id"],account["name"],account["department"],account["position"],account["salary"],account["manager"],account["contact"],account["rating"])
+                user = Admin(account["id"], account["name"],
+                             account["department"], account["position"],
+                             account["salary"], account["manager"],
+                             account["contact"], account["rating"])
 
                 return redirect(url_for("admin"))
             else:
@@ -74,6 +93,8 @@ def login():
         msg = "Login Failed"
 
     return render_template('index.html', msg=msg, form=form)
+
+
 @app.route('/Register', methods=['GET', 'POST'])
 def register():
     # Output message if something goes wrong...
@@ -88,59 +109,69 @@ def register():
         username = form.username.data
         password = form.password.data
         # Password Hashing + Salting
-        password = hashlib.sha256((password + " meow").encode())
-        password = password.hexdigest()
+        # salting
+        salt = bcrypt.gensalt()
+        # Hashing
         email = form.email.data
-
-        #Check for repeating names in Client table
+        # Check for repeating names in Client table
+        password = bcrypt.hashpw(password, salt)
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM Client, WHERE username = %s",(username,))
+        cursor.execute("SELECT * FROM Client WHERE name = %s", (username,))
         account = cursor.fetchone()
         if account:
-            msg="Username is Taken"
+            msg = "Username is Taken"
+            print("hello")
             return render_template('register.html', msg=msg, form=form)
-        #Check for repeating names in Admin
+        # Check for repeating names in Admin
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM Admin, WHERE username = %s",(username,))
+        cursor.execute("SELECT * FROM Admin WHERE name = %s", (username,))
         account = cursor.fetchone()
         if account:
-            msg="Username is Taken"
+            msg = "Username is Taken"
             return render_template('register.html', msg=msg, form=form)
 
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute('INSERT INTO Client VALUES (NULL, %s, %s, %s, %s, %s, %s)', (username, password, email, "0", False, 0))
+        cursor.execute('INSERT INTO Client VALUES (NULL, %s, %s, %s, %s, %s, %s)',
+                       (username, password, email, "0", False, 0))
         mysql.connection.commit()
 
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM Client WHERE NAME = %s",(username,))
-        account = cursor.fetchone
-        mysql.connection.commit()
+        cursor.execute("SELECT * FROM Client WHERE name = %s", (username,))
+        account = cursor.fetchone()
 
-        session["loggedin"] = True
-        # Start clock for session timeout
-        session.permanent = True
-        session['id'] = account['id']
-        session["username"] = account['NAME']
-        global user
-        user = Client(account['id'],account['NAME'],account["email"],account['card'],account["membership"])
-        return redirect(url_for("home"))
+        if account:
+            session["loggedin"] = True
+            # Start clock for session timeout
+            session.permanent = True
+            session['id'] = account['id']
+            session["username"] = account['NAME']
+            global user
+            user = Client(account['id'], account['NAME'],
+                          account["email"], account['card'],
+                          account["membership"], account["points"])
 
-
+            return redirect(url_for("home"))
+        else:
+            msg = "ERROR OCCURED, CONTACT DEVELOPER"
     elif request.method == 'POST':
         # Form is empty... (no POST data)
         msg = 'Errorsssss'
         # Show registration form with message (if any)
     return render_template('register.html', msg=msg, form=form)
 
+
+# noinspection PyUnresolvedReferences
 @app.route('/Logout')
 def logout():
+
     # Remove session data, log the user out
     session.pop('loggedin', None)
     session.pop('id', None)
     session.pop('username', None)
-    del user
+    user.__del__()
     # Redirect to login page
     return redirect(url_for('login'))
+
 
 @app.route("/home")
 def home():
@@ -148,11 +179,12 @@ def home():
         return render_template('home.html', username=session["username"])
     return redirect(url_for("login"))
 
+
 @app.route('/MyWebApp/profile')
 def profile():
     # Check if user is loggedin
     if 'loggedin' in session:
-        # We need all the account info for the user so we can display it on the profile page
+        # We need all the account info for the user, so we can display it on the profile page
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cursor.execute('SELECT * FROM Client WHERE id = %s', (session['id'],))
         account = cursor.fetchone()
@@ -161,6 +193,8 @@ def profile():
     # User is not loggedin redirect to login page
     return redirect(url_for('login'))
 
-if __name__== '__main__':
+
+if __name__ == '__main__':
     os.system("cls")
+
     app.run(debug=True)
