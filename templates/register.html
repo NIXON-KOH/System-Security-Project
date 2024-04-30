@@ -19,15 +19,19 @@
 				<label for="username">
 					<i class="fas fa-user"></i>
 				</label>
-				<input type="text" name="username" placeholder="Username" id="username" required>
+				<input type="text" name="username" placeholder="Username" id="username" value="Username" required>
 				<label for="password">
 					<i class="fas fa-lock"></i>
 				</label>
-				<input type="password" name="password" placeholder="Password" id="password" required>
+				<input type="password" name="password" placeholder="Password" id="password" value="Username123!" required>
+				<label for="ConfirmPassword">
+					<i class="fas fa-lock"></i>
+				</label>
+				<input type="password" name="ConfirmPassword" placeholder="Confirm Password" id="ConfirmPassword" value="Username123!" required>
 				<label for="email">
 					<i class="fas fa-envelope"></i>
 				</label>
-				<input type="email" name="email" placeholder="Email" id="email" required>
+				<input type="email" name="email" placeholder="Email" id="email" value="username@gmail.com" required>
 				<div class="msg">{{ msg }}</div>
 				<input type="submit" value="Register">
 			</form>
