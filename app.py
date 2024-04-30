@@ -35,7 +35,6 @@ def login():
     form = validation.LoginForm(request.form)
 
     if request.method == "POST" and form.validate():
-        print("hello world")
         username = form.username.data
         password = form.password.data
         #Password Hashing + Salting
@@ -94,14 +93,15 @@ def register():
 
         #Check for repeating names in Client table
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM Client, WHERE username = %s",(username,))
+        cursor.execute("SELECT * FROM Client WHERE name = %s",(username,))
         account = cursor.fetchone()
         if account:
             msg="Username is Taken"
+            print("hello")
             return render_template('register.html', msg=msg, form=form)
         #Check for repeating names in Admin
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM Admin, WHERE username = %s",(username,))
+        cursor.execute("SELECT * FROM Admin WHERE name = %s",(username,))
         account = cursor.fetchone()
         if account:
             msg="Username is Taken"
@@ -112,18 +112,20 @@ def register():
         mysql.connection.commit()
 
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM Client WHERE NAME = %s",(username,))
-        account = cursor.fetchone
-        mysql.connection.commit()
+        cursor.execute("SELECT * FROM Client WHERE name = %s",(username,))
+        account = cursor.fetchone()
 
-        session["loggedin"] = True
-        # Start clock for session timeout
-        session.permanent = True
-        session['id'] = account['id']
-        session["username"] = account['NAME']
-        global user
-        user = Client(account['id'],account['NAME'],account["email"],account['card'],account["membership"])
-        return redirect(url_for("home"))
+        if account:
+            session["loggedin"] = True
+            # Start clock for session timeout
+            session.permanent = True
+            session['id'] = account['id']
+            session["username"] = account['NAME']
+            global user
+            user = Client(account['id'],account['NAME'],account["email"],account['card'],account["membership"])
+            return redirect(url_for("home"))
+        else:
+            msg = "ERROR OCCURED, CONTACT DEVELOPER"
 
 
     elif request.method == 'POST':
@@ -134,11 +136,12 @@ def register():
 
 @app.route('/Logout')
 def logout():
+
     # Remove session data, log the user out
     session.pop('loggedin', None)
     session.pop('id', None)
     session.pop('username', None)
-    del user
+    user.__del__()
     # Redirect to login page
     return redirect(url_for('login'))
 
@@ -163,4 +166,5 @@ def profile():
 
 if __name__== '__main__':
     os.system("cls")
+
     app.run(debug=True)

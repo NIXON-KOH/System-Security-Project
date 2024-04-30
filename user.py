@@ -5,6 +5,8 @@ class User():
 
     def get_name(self):
         return self._name
+    def __del__(self):
+        del self
 
 class Admin(User):
     def __init__(self,id:int,name:str,department:str,position:str,salary:float,manager:bool,contact:int,rating:float):
