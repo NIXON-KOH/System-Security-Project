@@ -5,6 +5,8 @@ class User:
 
     def get_name(self):
         return self._name
+    def __del__(self):
+        del self
 
     def __del__(self):
         del self
