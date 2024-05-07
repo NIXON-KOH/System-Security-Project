@@ -28,8 +28,7 @@ class Client(User):
     def __init__(self, idno: int, name: str, email: str, card: int, membership: bool, points: int):
         super().__init__(idno, name)
         self._email = email
-        if len(str(card)) =
-    = 18:
+        if len(str(card)) == 18:
             self._cardno = int(str(card)[:15])
             self._cvv = int(str(card)[15:])
         else:
