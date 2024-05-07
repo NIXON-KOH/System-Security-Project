@@ -25,6 +25,8 @@ app.config['MYSQL_USER'] = 'root'
 # Lab computers use the root password `mysql`
 app.config['MYSQL_PASSWORD'] = 'Jameskayle23!'  # Password is in group chat, I don't know if people can hack or not
 app.config['MYSQL_DB'] = 'pythonlogin'
+app.config['RECAPTCHA_PUBLIC_KEY'] = '6Lej79MpAAAAAAt2WOTiKwRldOYahQ8E7FrjaKt3'
+app.config['RECAPTCHA_PRIVATE_KEY'] = '6Lej79MpAAAAAOQ-poskqpjcU2t6ySN8MWhPKSP7'
 # Session Timeout
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=10)
 app.config['MYSQL_PORT'] = 3306  # DO NOTE THAT THE MYSQL SERVER INSTANCE IN THE LAB IS RUNNING ON PORT 3360.
