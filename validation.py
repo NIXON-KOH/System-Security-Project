@@ -1,6 +1,7 @@
 
 import re
 from wtforms import Form, StringField, validators, PasswordField, SubmitField
+from flask_wtf import FlaskForm, RecaptchaField
 
 
 class LoginForm(Form):
@@ -9,11 +10,13 @@ class LoginForm(Form):
     submit = SubmitField("Login")
 
 
+
 class RegistrationForm(Form):
     username = StringField("username")
     email = StringField("email")
     password = PasswordField('password')
     submit = SubmitField("Register")
+    recaptcha = RecaptchaField()
 
     @staticmethod
     def validate_password(self, field):
