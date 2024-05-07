@@ -17,9 +17,6 @@ hehe = "".join(random.choices(string.ascii_lowercase+string.ascii_uppercase+stri
 print(hehe)
 app.secret_key = hehe
 
-csrf = CSRFProtect()
-csrf.init_app(app)
-
 
 # Enter your database connection details below
 app.config['MYSQL_HOST'] = 'localhost'
@@ -52,13 +49,16 @@ def login():
         password = form.password.data
         # Password Hashing + Salting
         # salting
-        salt = bcrypt.gensalt()
-        # Hashing
-        password = bcrypt.hashpw(password, salt)
-
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM client WHERE name = %s AND password = %s", (username, password,))
+        cursor.execute("SELECT * FROM client WHERE name = %s", (username,))
         account = cursor.fetchone()
+        salt = (account["password"][0:29]).encode("utf-8")
+
+
+        # Hashing
+        bytes = password.encode("utf-8")
+        password = bcrypt.hashpw(bytes, salt)
+        password = str(password)
         if account:
             session["loggedin"] = True
             # Start clock for session timeout
@@ -105,7 +105,6 @@ def register():
     # Check if "username", "password" and "email" POST requests exist (user submitted form)
     if request.method == "POST" and form.validate():
         # Create variables for easy access
-        print("loll")
         username = form.username.data
         password = form.password.data
         # Password Hashing + Salting
@@ -114,13 +113,13 @@ def register():
         # Hashing
         email = form.email.data
         # Check for repeating names in Client table
-        password = bcrypt.hashpw(password, salt)
+        bytes = password.encode("utf-8")
+        password = bcrypt.hashpw(bytes, salt)
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM Client WHERE name = %s", (username,))
+        cursor.execute("SELECT * FROM client WHERE name = %s", (username,))
         account = cursor.fetchone()
         if account:
             msg = "Username is Taken"
-            print("hello")
             return render_template('register.html', msg=msg, form=form)
         # Check for repeating names in Admin
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
@@ -131,7 +130,7 @@ def register():
             return render_template('register.html', msg=msg, form=form)
 
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute('INSERT INTO Client VALUES (NULL, %s, %s, %s, %s, %s, %s)',
+        cursor.execute('INSERT INTO client VALUES (NULL, %s, %s, %s, %s, %s, %s)',
                        (username, password, email, "0", False, 0))
         mysql.connection.commit()
 
@@ -144,9 +143,9 @@ def register():
             # Start clock for session timeout
             session.permanent = True
             session['id'] = account['id']
-            session["username"] = account['NAME']
+            session["username"] = account['name']
             global user
-            user = Client(account['id'], account['NAME'],
+            user = Client(account['id'], account['name'],
                           account["email"], account['card'],
                           account["membership"], account["points"])
 
