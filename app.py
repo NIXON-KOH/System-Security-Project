@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, make_response
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
 import random
@@ -42,7 +42,8 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    msg = ''
+    msg = request.environ["REMOTE_ADDR"]
+    #msg = ''
     print(request.form)
     form = validation.LoginForm(request.form)
 
@@ -93,8 +94,9 @@ def login():
                 msg = "INCORRECT USERNAME/PASSWORD"
     if request.method == "POST":
         msg = "Login Failed"
+    response = make_response(render_template('index.html', msg=msg, form=form))
+    return response
 
-    return render_template('index.html', msg=msg, form=form)
 
 
 @app.route('/Register', methods=['GET', 'POST'])
@@ -117,19 +119,14 @@ def register():
         # Check for repeating names in Client table
         bytes = password.encode("utf-8")
         password = bcrypt.hashpw(bytes, salt)
-        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM client WHERE name = %s", (username,))
-        account = cursor.fetchone()
-        if account:
-            msg = "Username is Taken"
-            return render_template('register.html', msg=msg, form=form)
         # Check for repeating names in Admin
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cursor.execute("SELECT * FROM Admin WHERE name = %s", (username,))
         account = cursor.fetchone()
         if account:
             msg = "Username is Taken"
-            return render_template('register.html', msg=msg, form=form)
+            response = make_response(render_template('register.html', msg=msg, form=form))
+            return response
 
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cursor.execute('INSERT INTO client VALUES (NULL, %s, %s, %s, %s, %s, %s)',
@@ -158,18 +155,19 @@ def register():
         # Form is empty... (no POST data)
         msg = 'Errorsssss'
         # Show registration form with message (if any)
-    return render_template('register.html', msg=msg, form=form)
+    response = make_response(render_template('register.html', msg=msg, form=form))
+    return response
 
 
 # noinspection PyUnresolvedReferences
 @app.route('/Logout')
 def logout():
-
     # Remove session data, log the user out
     session.pop('loggedin', None)
     session.pop('id', None)
     session.pop('username', None)
     user.__del__()
+    session.close()
     # Redirect to login page
     return redirect(url_for('login'))
 
@@ -177,7 +175,8 @@ def logout():
 @app.route("/home")
 def home():
     if "loggedin" in session:
-        return render_template('home.html', username=session["username"])
+        response = make_response(render_template('home.html', username=session["username"]))
+        return response
     return redirect(url_for("login"))
 
 
@@ -190,7 +189,8 @@ def profile():
         cursor.execute('SELECT * FROM Client WHERE id = %s', (session['id'],))
         account = cursor.fetchone()
         # Show the profile page with account info
-        return render_template('profile.html', account=account)
+        response = make_response(render_template('profile.html', account=account))
+        return response
     # User is not loggedin redirect to login page
     return redirect(url_for('login'))
 
