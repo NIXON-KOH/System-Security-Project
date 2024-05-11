@@ -1,0 +1,16 @@
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8  offset-lg-2">
+
+
+                <form method="post" action="{{ url_for('tasks') }}">
+                    <input type="submit" value="click" name="capture" />
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                </form>
+                <img src="{{ url_for('video_feed') }}" height="80%">
+
+            </div>
+        </div>
+    </div>
+    </body>

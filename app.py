@@ -1,16 +1,16 @@
-from flask import Flask, render_template, request, redirect, url_for, session, make_response
+from flask import Flask, render_template, request, redirect, url_for, session, make_response, Response
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
 import random
 import string
 import validation
 import os
-from datetime import timedelta
+from datetime import timedelta, datetime
 import bcrypt
 import cv2
 from flask_wtf.csrf import CSRFProtect
-
-
+import numpy as np
+import time
 app = Flask(__name__)
 
 
@@ -31,6 +31,12 @@ app.config['RECAPTCHA_PRIVATE_KEY'] = '6Lej79MpAAAAAOQ-poskqpjcU2t6ySN8MWhPKSP7'
 # Session Timeout
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=10)
 app.config['MYSQL_PORT'] = 3306  # DO NOTE THAT THE MYSQL SERVER INSTANCE IN THE LAB IS RUNNING ON PORT 3360.
+net = cv2.dnn.readNetFromCaffe('proto.txt', 'res10_300x300_ssd_iter_140000.caffemodel')
+camera = cv2.VideoCapture(0)
+
+global capture,rec_frame, grey, switch, neg, face, rec, out
+grey = face = 1
+switch = rec = capture = 0
 
 # Initialize MySQL
 mysql = MySQL(app)
@@ -58,9 +64,10 @@ class User:
 
 @app.route("/")
 def index():
-    return redirect(url_for("login"))
+    return redirect(url_for("register_face"))
 
 #FACE RECOGNITION
+
 def capture_image():
     # Initialize the camera
     cap = cv2.VideoCapture(0)
@@ -68,80 +75,86 @@ def capture_image():
     cap.release()
     return frame
 
-# Function to detect faces in an image
-def detect_faces(image):
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
-    return faces
 
-# Function to save face image to file
-def save_face_image(image, username):
-    face_dir = 'faces'
-    if not os.path.exists(face_dir):
-        os.makedirs(face_dir)
-    filename = os.path.join(face_dir, f'{username}.jpg')
-    cv2.imwrite(filename, image)
+def detect_face(frame):
+    global net
+    (h, w) = frame.shape[:2]
+    blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
+                                 (300, 300), (104.0, 177.0, 123.0))
+    net.setInput(blob)
+    detections = net.forward()
+    confidence = detections[0, 0, 0, 2]
 
-# Function to load face images
-def load_face_images():
-    face_dir = 'faces'
-    face_images = {}
-    for filename in os.listdir(face_dir):
-        username = os.path.splitext(filename)[0]
-        image = cv2.imread(os.path.join(face_dir, filename))
-        face_images[username] = image
-    return face_images
-user_face = {}
+    if confidence < 0.7:
+        return frame
 
-@app.route('/face_register', methods=['GET', 'POST'])
-def face_register():
-    msg = ""
-    if request.method == 'POST':
-        username = request.form['username']
-        # Capture face image
-        face_image = capture_image()
-        # Detect faces in the image
-        faces = detect_faces(face_image)
-        if len(faces) == 1:
-            # Save the face image
-            save_face_image(face_image, username)
-            # Store the username and face image
-            user_face[username] = {'face_image': face_image}
-            return render_template("home")
+    box = detections[0, 0, 0, 3:7] * np.array([w, h, w, h])
+    (startX, startY, endX, endY) = box.astype("int")
+    try:
+        frame = frame[startY:endY, startX:endX]
+        (h, w) = frame.shape[:2]
+        r = 480 / float(h)
+        dim = (int(w * r), 480)
+        frame = cv2.resize(frame, dim)
+    except Exception as e:
+        pass
+    return frame
+
+
+def gen_frames():  # generate frame by frame from camera
+    global out, capture, rec_frame
+    while True:
+        success, frame = camera.read()
+        if success:
+            frame = detect_face(frame)
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            if (capture):
+                now = datetime.now()
+                p = os.path.sep.join(['shots', "shot_1.png"])
+                cv2.imwrite(p, frame)
+
+            try:
+                ret, buffer = cv2.imencode('.jpg', cv2.flip(frame, 1))
+                frame = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            except Exception as e:
+                pass
+
         else:
-            msg = "Error: Could not detect face or multiple faces detected. Please try again."
-            return render_template('register.html',msg=msg)
-    return render_template('register.html',msg=msg)
+            pass
 
-@app.route('/face_login', methods=['GET', 'POST'])
-def face_login():
+
+@app.route('/register_face')
+def register_face():
+    return render_template('register_face.html')
+
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/requests-face', methods=['POST', 'GET'])
+def tasks():
+    global switch, camera
     if request.method == 'POST':
-        # Capture face image
-        face_image = capture_image()
-        # Detect faces in the image
-        faces = detect_faces(face_image)
+        if request.form.get('click') == 'Capture':
+            global capture, grey, face
+            capture = 1
+            grey = not grey
+            face = not face
+            if (face):
+                time.sleep(4)
 
-        if len(faces) == 1:
-            print("Face Detected")
-            # Loop through registered users to find a match
-            for username, data in user_face.items():
-                registered_face = data['face_image']
-                # Compare face images using norm correlation coefficient
-                result = cv2.matchTemplate(face_image, registered_face, cv2.TM_CCOEFF_NORMED)
-                _, similarity, _, _ = cv2.minMaxLoc(result)
-                if similarity >= 0.7:  # Adjust threshold as needed
-                    return url_for("home")
-            return "Face not recognized. Please try again."
-        else:
-            return "Error: Could not detect face or multiple faces detected. Please try again."
-    return render_template('login.html')
+    elif request.method == 'GET':
+        return render_template('register_face.html')
+    return render_template('register_face.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     msg = request.environ["REMOTE_ADDR"]
     #msg = ''
-    print(request.form)
     form = validation.LoginForm(request.form)
 
     if request.method == "POST" and form.validate():
@@ -150,7 +163,7 @@ def login():
         # Password Hashing + Salting
         # salting
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM client WHERE name = %s", (username,))
+        cursor.execute("SELECT * FROM user WHERE name = %s", (username,))
         account = cursor.fetchone()
         salt = (account["password"][0:29]).encode("utf-8")
 
@@ -205,7 +218,7 @@ def register():
         password = bcrypt.hashpw(bytes, salt)
         # Check for repeating names in Admin
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM Admin WHERE name = %s", (username,))
+        cursor.execute("SELECT * FROM user WHERE name = %s", (username,))
         account = cursor.fetchone()
         if account:
             msg = "Username is Taken"
@@ -213,12 +226,12 @@ def register():
             return response
 
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute('INSERT INTO client VALUES (NULL, %s, %s, %s, %s, %s, %s)',
+        cursor.execute('INSERT INTO user VALUES (NULL, %s, %s, %s, %s, %s, %s)',
                        (username, password, email, "0", False, 0))
         mysql.connection.commit()
 
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute("SELECT * FROM Client WHERE name = %s", (username,))
+        cursor.execute("SELECT * FROM user WHERE name = %s", (username,))
         account = cursor.fetchone()
 
         if account:
@@ -269,7 +282,7 @@ def profile():
     if 'loggedin' in session:
         # We need all the account info for the user, so we can display it on the profile page
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute('SELECT * FROM Client WHERE id = %s', (session['id'],))
+        cursor.execute('SELECT * FROM user WHERE id = %s', (session['id'],))
         account = cursor.fetchone()
         # Show the profile page with account info
         response = make_response(render_template('profile.html', account=account))
