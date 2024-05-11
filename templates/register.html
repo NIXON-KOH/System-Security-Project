@@ -19,24 +19,33 @@
 					<a href="{{ url_for('login') }}">Login</a>
 					<a href="{{ url_for('register') }}" class="active">Register</a>
 				</div>
-				<form action="{{ url_for('register') }}" method="post" autocomplete="off">
-					<label for="username">
-						<i class="fas fa-user"></i>
-					</label>
-					<input type="text" name="username" placeholder="Username" id="username" value="Username" required>
-					<label for="password">
-						<i class="fas fa-lock"></i>
-					</label>
-					<input type="password" name="password" placeholder="Password" id="password" value="Username123!" required>
-					<label for="email">
-						<i class="fas fa-envelope"></i>
-					</label>
-					<input type="email" name="email" placeholder="Email" id="email" value="username@gmail.com" required>
-
-					{{ form.recaptcha }}
-					<div class="msg">{{ msg }}</div>
-					<input type="submit" value="Register">
-				</form>
+				<div class="credential-container">
+					<form action="{{ url_for('register') }}" method="post" autocomplete="off">
+						<div class="credential-row">
+							<label for="username">
+								<i class="fas fa-user"></i>
+							</label>
+							<input type="text" name="username" placeholder="Username" id="username" value="Username" required>
+						</div>
+						<div class="credential-row">
+							<label for="password">
+								<i class="fas fa-lock"></i>
+							</label>
+							<input type="password" name="password" placeholder="Password" id="password" value="Username123!" required>
+						</div>
+						<div class="credential-row">
+							<label for="email">
+								<i class="fas fa-envelope"></i>
+							</label>
+							<input type="email" name="email" placeholder="Email" id="email" value="username@gmail.com" required>
+						</div>
+						<div class="credential-row">
+						{{ form.recaptcha }}
+						</div>
+						<div class="msg">{{ msg }}</div>
+						<input type="submit" value="Register" class="register-button">
+					</form>
+				</div>
 			</div>
 		</div>
 	</body>
