@@ -10,8 +10,8 @@
 	</head>
 	<body>
 		<div class="login-container">
-			<div class="login-background">
-				<img src="{{ url_for('static', filename='../static/media/placeholder background image.png') }}" alt="background image" class="background-image">
+			<div class="login-background" id="background-container">
+				<img src="{{ url_for('static', filename='../static/media/placeholder background image.png') }}" alt="background image" class="background-image" id="background-image">
 			</div>
 			<div class="register">
 				<h1>Register</h1>
@@ -43,10 +43,12 @@
 						{{ form.recaptcha }}
 						</div>
 						<div class="msg">{{ msg }}</div>
+						<button id="toggle-webcam" type="button">Toggle Webcam</button>
 						<input type="submit" value="Register" class="register-button">
 					</form>
 				</div>
 			</div>
-		</div>
+		
+		<script src="{{ url_for('static', filename='index.js')}}"></script></div>
 	</body>
 </html>
