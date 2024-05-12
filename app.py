@@ -1,5 +1,4 @@
 import threading
-
 from flask import Flask, render_template, request, redirect, url_for, session, make_response, Response
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
