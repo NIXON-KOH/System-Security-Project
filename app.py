@@ -105,8 +105,8 @@ def detect_face(frame):
 def cap(i):
     global capture
     capture = 1 if i < 10 else 0
-    print("Image Captured")
     return
+
 def gen_frames():  # generate frame by frame from camera
     global out, capture, rec_frame
     i = 0
@@ -117,10 +117,10 @@ def gen_frames():  # generate frame by frame from camera
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             if (capture):
                 capture = 0
-                p = os.path.sep.join(['shots', "{}_{:0>3}.png".format("Nixon",str(i))])
+                p = os.path.sep.join(['shots', "{}_{:0>3}.jpg".format("Nixon",str(i))])
                 cv2.imwrite(p, frame)
                 print("Image taken")
-                threading.Timer(2, cap, [i]).start()
+                threading.Timer(0.3, cap, [i]).start()
                 i += 1
 
 

@@ -1,11 +1,12 @@
-<body>
+
+<body style="background-color:pink;">
     <div class="container">
         <div class="row">
             <div class="col-lg-8  offset-lg-2">
 
 
                 <form method="post" action="{{ url_for('tasks') }}">
-                    <button type="submit" id="start-seizure" >click</button>
+                    <button type="submit" onclick="epilepsy()" >click</button>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 </form>
 
@@ -14,11 +15,11 @@
             </div>
         </div>
     </div>
+
     </body>
 <script>
-
-    document.getElementById('start-seizure').addEventListener('click', epilepsy);
     function epilepsy() {
+    console.log("hellos")
     const colors = ['red', 'purple', 'blue', 'green', 'yellow', 'orange']; // Colors to flash
     let index = 0;
     let originalBodyBg = document.body.style.backgroundColor;
@@ -37,13 +38,4 @@
         }
     });
 
-    function revertChanges() {
-        clearInterval(intervalId);
-        document.body.style.backgroundColor = originalBodyBg;
-        allElements.forEach((el, idx) => {
-            el.style.opacity = originalOpacities[idx];
-        });
-    }
-    setTimeout(revertChanges, 10000); // <-- edit this to change time the function flashes for
-}
 </script>
