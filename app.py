@@ -1,3 +1,5 @@
+import threading
+
 from flask import Flask, render_template, request, redirect, url_for, session, make_response, Response
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
@@ -10,7 +12,7 @@ import bcrypt
 import cv2
 from flask_wtf.csrf import CSRFProtect
 import numpy as np
-import time
+
 app = Flask(__name__)
 
 
@@ -34,9 +36,10 @@ app.config['MYSQL_PORT'] = 3306  # DO NOTE THAT THE MYSQL SERVER INSTANCE IN THE
 net = cv2.dnn.readNetFromCaffe('proto.txt', 'res10_300x300_ssd_iter_140000.caffemodel')
 camera = cv2.VideoCapture(0)
 
-global capture,rec_frame, grey, switch, neg, face, rec, out
+global capture, grey, switch, face
 grey = face = 1
-switch = rec = capture = 0
+switch = capture = 0
+
 
 # Initialize MySQL
 mysql = MySQL(app)
@@ -91,7 +94,7 @@ def detect_face(frame):
     box = detections[0, 0, 0, 3:7] * np.array([w, h, w, h])
     (startX, startY, endX, endY) = box.astype("int")
     try:
-        frame = frame[startY:endY, startX:endX]
+        frame = frame[(startY-10):(endY+10), (startX-10):(endX+10)]
         (h, w) = frame.shape[:2]
         r = 480 / float(h)
         dim = (int(w * r), 480)
@@ -100,24 +103,34 @@ def detect_face(frame):
         pass
     return frame
 
-
+def cap(i):
+    global capture
+    capture = 1 if i < 10 else 0
+    print("Image Captured")
+    return
 def gen_frames():  # generate frame by frame from camera
     global out, capture, rec_frame
+    i = 0
     while True:
         success, frame = camera.read()
         if success:
             frame = detect_face(frame)
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             if (capture):
-                now = datetime.now()
-                p = os.path.sep.join(['shots', "shot_1.png"])
+                capture = 0
+                p = os.path.sep.join(['shots', "{}_{:0>3}.png".format("Nixon",str(i))])
                 cv2.imwrite(p, frame)
+                print("Image taken")
+                threading.Timer(2, cap, [i]).start()
+                i += 1
+
 
             try:
                 ret, buffer = cv2.imencode('.jpg', cv2.flip(frame, 1))
                 frame = buffer.tobytes()
+
                 yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n') # yield is a return but for a generator
             except Exception as e:
                 pass
 
@@ -134,21 +147,16 @@ def register_face():
 def video_feed():
     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-
 @app.route('/requests-face', methods=['POST', 'GET'])
 def tasks():
-    global switch, camera
+    global switch, camera, capture
     if request.method == 'POST':
-        if request.form.get('click') == 'Capture':
-            global capture, grey, face
-            capture = 1
-            grey = not grey
-            face = not face
-            if (face):
-                time.sleep(4)
+        capture = 1
+
 
     elif request.method == 'GET':
         return render_template('register_face.html')
+
     return render_template('register_face.html')
 
 @app.route('/login', methods=['GET', 'POST'])
