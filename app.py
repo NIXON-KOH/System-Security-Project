@@ -11,6 +11,7 @@ import bcrypt
 import cv2
 from flask_wtf.csrf import CSRFProtect
 import numpy as np
+import shutil
 
 app = Flask(__name__)
 
@@ -37,13 +38,17 @@ camera = cv2.VideoCapture(0)
 
 global capture, grey, switch, face
 grey = face = 1
-switch = capture = 0
+switch = capture = login = 0
 
 
 # Initialize MySQL
 mysql = MySQL(app)
 
-
+def log(msg):
+    cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+    cursor.execute('INSERT INTO log VALUES (NULL, %s, %s, %s)',
+                   (datetime.now(), user.get_id(), msg,))
+    mysql.connection.commit()
 
 class User:
     def __init__(self, idno, name: str, department: str, position: str,
@@ -66,7 +71,7 @@ class User:
 
 @app.route("/")
 def index():
-    return redirect(url_for("register_face"))
+    return redirect(url_for("login_face"))
 
 #FACE RECOGNITION
 
@@ -107,22 +112,39 @@ def cap(i):
     capture = 1 if i < 10 else 0
     return
 
+def log_in(i):
+    global login
+    login = 1 if i < 10 else 0
+    return
+
 def gen_frames():  # generate frame by frame from camera
-    global out, capture, rec_frame
+    global out, capture, rec_frame, login
     i = 0
     while True:
         success, frame = camera.read()
         if success:
             frame = detect_face(frame)
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            if frame is not None:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            else:
+                print(frame)
+
             if (capture):
                 capture = 0
-                p = os.path.sep.join(['shots', "{}_{:0>3}.jpg".format("Nixon",str(i))])
+                p = os.path.sep.join(['shots', "{}_{:0>3}.jpg".format("nixon",str(i))]) # change to session["username"]
                 cv2.imwrite(p, frame)
-                print("Image taken")
                 threading.Timer(0.3, cap, [i]).start()
                 i += 1
 
+            if (login):
+                login = 0
+                p = os.path.sep.join(['temp_face', "{}_{:0>3}.jpg".format("nixon", str(i))]) # change to session["username"]
+                cv2.imwrite(p, frame)
+                threading.Timer(0.3, log_in, [i]).start()
+                i += 1
+                if i == 11:
+
+                    return face_recognition()
 
             try:
                 ret, buffer = cv2.imencode('.jpg', cv2.flip(frame, 1))
@@ -146,17 +168,61 @@ def register_face():
 def video_feed():
     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+
 @app.route('/requests-face', methods=['POST', 'GET'])
 def tasks():
     global switch, camera, capture
     if request.method == 'POST':
         capture = 1
-
-
     elif request.method == 'GET':
         return render_template('register_face.html')
 
     return render_template('register_face.html')
+
+
+#Login Face
+@app.route('/login_face')
+def login_face():
+    return render_template('login_face.html')
+
+@app.route("/face_recog")
+def face_recognition():
+    x = 0
+    dir_content = os.listdir("temp_face")
+    for i in range(11):
+        registered = cv2.imread("shots/{}_{:0>3}.jpg".format("nixon",i)) # change to session["username"]
+        test = cv2.imread(f"temp_face/{dir_content[i]}")
+
+        result = cv2.matchTemplate(test, registered, cv2.TM_CCOEFF_NORMED)
+        _, similarity, _, _ = cv2.minMaxLoc(result)
+        x += similarity
+        print(i, x)
+
+    for i in os.listdir("temp_face"):
+        file_path = os.path.join("temp_face", i)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+    print(x)
+    if x >= 6.9: # Noice
+        return redirect(url_for("home"))
+    else:
+        return redirect(url_for("login"))
+
+@app.route("/requests-face-login", methods=["POST","GET"])
+def task_login():
+    global switch, camera, login
+    if request.method == 'POST':
+        login = 1
+
+    elif request.method == 'GET':
+        return render_template('login_face.html')
+    return render_template('login_face.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -201,7 +267,7 @@ def login():
 def check():
     if "loggedin" not in session:
         if User.get_manager():
-            return
+            return 
 
 @app.route('/Register', methods=['GET', 'POST'])
 def register():
