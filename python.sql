@@ -1,29 +1,17 @@
 
-drop table Client, Admin, room, logs;
 CREATE DATABASE IF NOT EXISTS `pythonlogin` DEFAULT CHARACTER SET utf8 COLLATE UTF8_general_ci;
 use `pythonlogin`;
 
-CREATE TABLE IF NOT EXISTS Client (
+CREATE TABLE IF NOT EXISTS user (
 	id int NOT NULL auto_increment,
-    name varchar(255) NOT NULL,
-    password varchar(255) NOT NULL,
-    email varchar(100) NOT NULL,
-    card int,
-    membership bool NOT NULL,
-    points int NOT NULL,
-    PRIMARY KEY (id)
-);
-
-CREATE TABLE IF NOT EXISTS Admin(
-	id int NOT NULL auto_increment,
-    name VARCHAR(255) NOT NULL,
-    password varchar(255) NOT NULL,
+	google_id int,
+	name varchar(255) NOT NULL,
+    password varchar(255),
     department varchar(255) NOT NULL,
     position varchar(255) NOT NULL,
-    salary float(50,2) NOT NULL,
-    manager bool NOT NULL,
-    contact int NOT NULL, 
-    rating Float,
+    salary float NOT NULL,
+    manager boolean NOT NULL,
+    contact int NOT NULL,
     PRIMARY KEY (id)
 );
 
@@ -40,6 +28,9 @@ Create TABLE IF NOT EXISTS room(
 
 CREATE TABLE IF NOT EXISTS logs(
 	id int NOT NULL auto_increment,
-	date datetime NOT NULL, 
-    PRIMARY KEY (id)
+    date datetime NOT NULL,
+    user int,
+	msg varchar(255),
+    PRIMARY KEY (id),
+    FOREIGN KEY (user) REFERENCES user(id)
 );

@@ -26,6 +26,7 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="submit" value="Login">
             </form>
+        <a href="{{ url_for('googlelogin') }}">Login with Google</a>
     </div>
 </body>
 </html>
