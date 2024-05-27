@@ -1,4 +1,3 @@
-import threading
 from flask import Flask, render_template, request, redirect, url_for, session, make_response, Response
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
@@ -11,15 +10,15 @@ import bcrypt
 import cv2
 from flask_wtf.csrf import CSRFProtect
 import numpy as np
-import shutil
 from oauthlib.oauth2 import InsecureTransportError
 import oauthlib.oauth2
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user
+from flask_login import LoginManager, UserMixin
 from requests_oauthlib import OAuth2Session
 from src.anti_spoof_predict import AntiSpoofPredict
 from src.generate_patches import CropImages
 from src.utility import parse_model_name
-
+from deepface import DeepFace
+import json
 def disable_https_requirement():
     oauthlib.oauth2.rfc6749.parameters.ALLOWED_REDIRECT_URI_SCHEMES.append('http')
 
@@ -90,10 +89,9 @@ def index():
 net = cv2.dnn.readNetFromCaffe('proto.txt', 'res10_300x300_ssd_iter_140000.caffemodel')
 camera = cv2.VideoCapture(0)
 
-global capture, grey, switch, face
+global capture, grey, switch, face, login
 grey = face = 1
 switch = login = False
-
 
 # Initialize MySQL
 mysql = MySQL(app)
@@ -113,7 +111,7 @@ def capture_image():
 
 
 def detect_face(frame):
-    global net
+    global net, login
     (h, w) = frame.shape[:2]
 
     blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
@@ -124,6 +122,7 @@ def detect_face(frame):
     confidence = detections[0, 0, 0, 2]
 
     if confidence < 0.7:
+        login = False
         return frame
 
     model_test = AntiSpoofPredict(0)
@@ -151,8 +150,8 @@ def detect_face(frame):
     value = prediction[0][label]/2
     if not (label == 1 and value > 0.95):
         print(f"Fake : {value}")
+        login = False
         return frame
-    print(value)
     box = detections[0, 0, 0, 3:7] * np.array([w, h, w, h])
     (startX, startY, endX, endY) = box.astype("int")
     try:
@@ -162,6 +161,24 @@ def detect_face(frame):
         dim = (int(w * r), 480)
         frame = cv2.resize(frame, dim)
 
+        if (login):
+            login = False
+            cv2.imwrite('image.jpg', frame)
+            for file in os.listdir("stored"):
+                print(file)
+                if file.endswith(".jpg"):
+                    print(file)
+                    result = DeepFace.verify(img1_path="image.jpg",
+                                             img2_path=f"./stored/{file}",
+                                             model_name="VGG-Face")
+                    print("hello")
+                    print(result)
+                    if result["verified"]:
+                        os.remove("image.jpg")
+                        return redirect("home")
+                        break
+            os.remove("image.jpg")
+            print("Not Found")
     except Exception as e:
         pass
 
@@ -174,19 +191,15 @@ def gen_frames():  # generate frame by frame from camera
         success, frame = camera.read()
         if success:
             frame = detect_face(frame)
-            if frame is not None:
-                pass
-            else:
-                print(frame)
 
-            try:
-                ret, buffer = cv2.imencode('.jpg', cv2.flip(frame, 1))
-                frame = buffer.tobytes()
+        try:
+            ret, buffer = cv2.imencode('.jpg', cv2.flip(frame, 1))
+            frame = buffer.tobytes()
 
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n') # yield is a return but for a generator
-            except Exception as e:
-                pass
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n') # yield is a return but for a generator
+        except Exception as e:
+            pass
 
         else:
             pass
