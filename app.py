@@ -16,7 +16,9 @@ from oauthlib.oauth2 import InsecureTransportError
 import oauthlib.oauth2
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user
 from requests_oauthlib import OAuth2Session
-
+from src.anti_spoof_predict import AntiSpoofPredict
+from src.generate_patches import CropImages
+from src.utility import parse_model_name
 
 def disable_https_requirement():
     oauthlib.oauth2.rfc6749.parameters.ALLOWED_REDIRECT_URI_SCHEMES.append('http')
@@ -82,7 +84,7 @@ class User:
         del self
 @app.route("/")
 def index():
-    return redirect(url_for("login"))
+    return redirect(url_for("login_face"))
 
 #FACE RECOGNITION
 net = cv2.dnn.readNetFromCaffe('proto.txt', 'res10_300x300_ssd_iter_140000.caffemodel')
@@ -90,7 +92,7 @@ camera = cv2.VideoCapture(0)
 
 global capture, grey, switch, face
 grey = face = 1
-switch = capture = login = 0
+switch = login = False
 
 
 # Initialize MySQL
@@ -101,6 +103,7 @@ def log(msg):
     cursor.execute('INSERT INTO log VALUES (NULL, %s, %s, %s)',
                    (datetime.now(), user.get_id(), msg,))
     mysql.connection.commit()
+
 def capture_image():
     # Initialize the camera
     cap = cv2.VideoCapture(0)
@@ -112,15 +115,44 @@ def capture_image():
 def detect_face(frame):
     global net
     (h, w) = frame.shape[:2]
+
     blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
                                  (300, 300), (104.0, 177.0, 123.0))
     net.setInput(blob)
+    detections = net.forward()
     detections = net.forward()
     confidence = detections[0, 0, 0, 2]
 
     if confidence < 0.7:
         return frame
 
+    model_test = AntiSpoofPredict(0)
+    image_cropper = CropImages()
+    image = frame
+    image_bbox = model_test.get_bbox(image)
+    prediction = np.zeros((1,3))
+    for model_name in os.listdir("./src/anti_spoof_models"):
+        h_input, w_input, model_type, scale = parse_model_name(model_name)
+        param = {
+            "org_img": image,
+            "bbox": image_bbox,
+            "scale": scale,
+            "out_w": w_input,
+            "out_h": h_input,
+            "crop": True,
+        }
+        if scale is None:
+            param["crop"] = False
+        img = image_cropper.crop(**param)
+        prediction += model_test.predict(img, os.path.join("./src/anti_spoof_models", model_name))
+
+    # draw result of prediction
+    label = np.argmax(prediction)
+    value = prediction[0][label]/2
+    if not (label == 1 and value > 0.95):
+        print(f"Fake : {value}")
+        return frame
+    print(value)
     box = detections[0, 0, 0, 3:7] * np.array([w, h, w, h])
     (startX, startY, endX, endY) = box.astype("int")
     try:
@@ -129,48 +161,23 @@ def detect_face(frame):
         r = 480 / float(h)
         dim = (int(w * r), 480)
         frame = cv2.resize(frame, dim)
+
     except Exception as e:
         pass
+
     return frame
 
-def cap(i):
-    global capture
-    capture = 1 if i < 10 else 0
-    return
-
-def log_in(i):
-    global login
-    login = 1 if i < 10 else 0
-    return
-
 def gen_frames():  # generate frame by frame from camera
-    global out, capture, rec_frame, login
+    global out, rec_frame, login
     i = 0
     while True:
         success, frame = camera.read()
         if success:
             frame = detect_face(frame)
             if frame is not None:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                pass
             else:
                 print(frame)
-
-            if (capture):
-                capture = 0
-                p = os.path.sep.join(['shots', "{}_{:0>3}.jpg".format("nixon",str(i))]) # change to session["username"]
-                cv2.imwrite(p, frame)
-                threading.Timer(0.3, cap, [i]).start()
-                i += 1
-
-            if (login):
-                login = 0
-                p = os.path.sep.join(['temp_face', "{}_{:0>3}.jpg".format("nixon", str(i))]) # change to session["username"]
-                cv2.imwrite(p, frame)
-                threading.Timer(0.3, log_in, [i]).start()
-                i += 1
-                if i == 11:
-
-                    return face_recognition()
 
             try:
                 ret, buffer = cv2.imencode('.jpg', cv2.flip(frame, 1))
@@ -183,70 +190,21 @@ def gen_frames():  # generate frame by frame from camera
 
         else:
             pass
-
-
-@app.route('/register_face')
-def register_face():
-    return render_template('register_face.html')
-
-
 @app.route('/video_feed')
 def video_feed():
     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
-@app.route('/requests-face', methods=['POST', 'GET'])
-def tasks():
-    global switch, camera, capture
-    if request.method == 'POST':
-        capture = 1
-    elif request.method == 'GET':
-        return render_template('register_face.html')
-
-    return render_template('register_face.html')
-
 
 #Login Face
 @app.route('/login_face')
 def login_face():
     return render_template('login_face.html')
 
-@app.route("/face_recog")
-def face_recognition():
-    x = 0
-    dir_content = os.listdir("temp_face")
-    for i in range(11):
-        registered = cv2.imread("shots/{}_{:0>3}.jpg".format("nixon",i)) # change to session["username"]
-        test = cv2.imread(f"temp_face/{dir_content[i]}")
-
-        result = cv2.matchTemplate(test, registered, cv2.TM_CCOEFF_NORMED)
-        _, similarity, _, _ = cv2.minMaxLoc(result)
-        x += similarity
-        print(i, x)
-
-    for i in os.listdir("temp_face"):
-        file_path = os.path.join("temp_face", i)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print('Failed to delete %s. Reason: %s' % (file_path, e))
-
-    print(x)
-    if x >= 6.9:  # Noice
-        return redirect(url_for("home"))
-    else:
-        return redirect(url_for("login"))
-
 
 @app.route("/requests-face-login", methods=["POST","GET"])
 def task_login():
     global switch, camera, login
     if request.method == 'POST':
-        login = 1
-
+        login = True
     elif request.method == 'GET':
         return render_template('login_face.html')
     return render_template('login_face.html')
@@ -257,7 +215,6 @@ def googlelogin():
     authorization_url, state = google.authorization_url(authorization_base_url, access_type="offline", prompt="consent")
     session['oauth_state'] = state
     return redirect(authorization_url)
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -289,7 +246,7 @@ def login():
             global user
             user = User(account['id'], account["name"], account["department"], account["position"],
                         account["salary"], account["manager"], account["contact"])
-            return redirect(url_for("home"))
+            return redirect(home)
 
         else:
             msg = "INCORRECT USERNAME/PASSWORD"
