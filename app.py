@@ -18,7 +18,6 @@ from src.anti_spoof_predict import AntiSpoofPredict
 from src.generate_patches import CropImages
 from src.utility import parse_model_name
 from deepface import DeepFace
-import json
 def disable_https_requirement():
     oauthlib.oauth2.rfc6749.parameters.ALLOWED_REDIRECT_URI_SCHEMES.append('http')
 
@@ -92,6 +91,8 @@ camera = cv2.VideoCapture(0)
 global capture, grey, switch, face, login
 grey = face = 1
 switch = login = False
+success1 = rba_status = False
+
 
 # Initialize MySQL
 mysql = MySQL(app)
@@ -109,9 +110,8 @@ def capture_image():
     cap.release()
     return frame
 
-
 def detect_face(frame):
-    global net, login
+    global net, login, success1
     (h, w) = frame.shape[:2]
 
     blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
@@ -148,7 +148,7 @@ def detect_face(frame):
     # draw result of prediction
     label = np.argmax(prediction)
     value = prediction[0][label]/2
-    if not (label == 1 and value > 0.95):
+    if not (label == 1 and value > 0.9):
         print(f"Fake : {value}")
         login = False
         return frame
@@ -162,21 +162,22 @@ def detect_face(frame):
         frame = cv2.resize(frame, dim)
 
         if (login):
-            login = False
+
             cv2.imwrite('image.jpg', frame)
             for file in os.listdir("stored"):
-                print(file)
                 if file.endswith(".jpg"):
                     print(file)
                     result = DeepFace.verify(img1_path="image.jpg",
                                              img2_path=f"./stored/{file}",
                                              model_name="VGG-Face")
-                    print("hello")
                     print(result)
                     if result["verified"]:
                         os.remove("image.jpg")
-                        return redirect("home")
-                        break
+                        login = False
+                        success1 = True
+                        print("found")
+                        return frame
+            login = False
             os.remove("image.jpg")
             print("Not Found")
     except Exception as e:
@@ -215,7 +216,12 @@ def login_face():
 
 @app.route("/requests-face-login", methods=["POST","GET"])
 def task_login():
-    global switch, camera, login
+    global switch, camera, login, success1,rba_status
+    if success1:
+        camera.release()
+        rba_status = True
+        return redirect(url_for("profile"))
+
     if request.method == 'POST':
         login = True
     elif request.method == 'GET':
@@ -338,10 +344,12 @@ def google_check():
             return f'Error fetching user info: {response.content}<br><a href="/logout">Logout</a>'
 #Check if logged in, role
 def check():
-
-    if "loggedin" not in session:
+    global rba_status
+    if "loggedin" in session and rba_status == True:
         if User.get_manager():
-            pass
+            return 0
+        else:
+            return 1
     return 'You are not logged in<br><a href="/login">Login</a>'
 
 @app.route('/Register', methods=['GET', 'POST'])
@@ -431,7 +439,8 @@ def home():
 @app.route('/MyWebApp/profile')
 def profile():
     # Check if user is loggedin
-    if 'loggedin' in session:
+    hey = check()
+    if hey == 0 or hey == 1:
         # We need all the account info for the user, so we can display it on the profile page
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cursor.execute('SELECT * FROM user WHERE id = %s', (session['id'],))
