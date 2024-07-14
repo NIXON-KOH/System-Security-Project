@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <form method="post" action="/addroom">
+        <input type="text" name="name" placeholder="Name">
+        <input type="number" name="cost" placeholder="cost">
+        <input type="checkbox" name="availability" value="availability">
+        <input type="checkbox" name="smoking" value="smoking">
+        <input type="file" name="files" accept=".png, .jpg, .jpeg">
+        <input type="submit" name="submit">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
+</body>
+</html
