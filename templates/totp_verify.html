@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Verify TOTP</title>
+</head>
+<body>
+    <h1>Verify TOTP</h1>
+    <form action="/totp" method="post" >
+        <label for="totp_code">TOTP Code:</label>
+        <input type="text" id="totp_code" name="totp" required>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="submit" name="submit" id="submit" value="verify"></input>
+        
+    </form>
+
+</body>
+</html>

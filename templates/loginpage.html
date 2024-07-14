@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Login</title>
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.1/css/all.css">
+</head>
+<body>
+    <div class="login">
+        <h1>Login</h1>
+        <div class="links">
+
+        </div>
+            <form action="{{ url_for('login') }}" method="post">
+
+                <label for="username"><i class="fas fa-user"></i></label>
+                <input type="text" name="username" placeholder="Username" id="username"
+                required>
+                <label for="password">
+                <i class="fas fa-lock"></i></label>
+                <input type="password" name="password" placeholder="Password" id="password" required>
+
+                <div class="msg">{{ msg }}</div>
+                {{ form.recaptcha }}
+               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="submit" value="Login">
+            </form>
+        <a href="{{ url_for('googlelogin') }}">Login with Google</a>
+    </div>
+</body>
+<script>
+
+let activeSessions = {{ active_sessions|tojson|safe }};
+window.onload = function() {
+    alert("Meow");
+    if (localStorage.getItem("tabIsOpen")) {
+        if (confirm("You already have another tab open. Do you want to use this tab instead?")) {
+            fetch('/invalidate_others', {method: 'POST'}).then(response => {
+                localStorage.setItem("tabIsOpen", "true");
+            });
+        } else {
+            window.location.href = "/logout";
+        }
+    } else {
+        localStorage.setItem("tabIsOpen", "true");
+    }
+};
+
+window.onbeforeunload = function() {
+    localStorage.removeItem("tabIsOpen");
+};
+
+function checkStatus() {
+    fetch('/status')
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('status').innerText = data.status;
+    });
+}
+
+function getAllLocalStorageData() {
+            let data = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                let key = localStorage.key(i);
+                data[key] = localStorage.getItem(key);
+            }
+            return data;
+        }
+
+function sendDataToFlaskBackend(url) {
+    let data = getAllLocalStorageData();
+    
+    data['activeSessionId'] = activeSessions[0]; // abit hardcoded but you get the idea
+    console.log(data['activeSessionId'])
+    data['uniqueTabId'] = localStorage.getItem('uniqueTabId');
+    
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        console.log('Success:', result);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+function generateUniqueTabId() {
+    return 'tab-' + Math.random().toString(36).substr(2, 16);
+}
+
+function setUniqueTabId() {
+    tabId = generateUniqueTabId();
+    localStorage.setItem('uniqueTabId', tabId);
+}
+
+window.onload = function() {
+    setUniqueTabId();
+    console.log('Tab ID:', localStorage.getItem('uniqueTabId'));
+};
+
+window.onbeforeunload = function() {
+    localStorage.removeItem('uniqueTabId');
+};
+
+// Call this function with your Flask endpoint URL
+function sendLocalStorageData() {
+    if (!localStorage.getItem('uniqueTabId')) {
+        localStorage.setItem('uniqueTabId', localStorage.getItem('uniqueTabId'));
+    }
+    if (!localStorage.getItem('token')) {
+        fetch('/get_active_sessions', { method: 'GET' })
+            .then(response => response.json())
+            .then(data => {
+                const token = data.token;
+                localStorage.setItem('token', token);
+                console.log('Session token set in localStorage:', token);
+            })
+            .catch(error => {
+                console.error('Error fetching session token:', error);
+            });
+    }
+    sendDataToFlaskBackend('/endpoint');
+}
+
+</script>
+
+</html>

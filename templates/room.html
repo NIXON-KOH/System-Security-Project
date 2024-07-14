@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <table>
+        {% for i in range(len(rooms)) %}
+        <tr>
+            <td>{{ rooms[i][0] }}</td>
+            <td>{{ rooms[i][1] }}</td>
+            <td>{{ rooms[i][2] }}</td>
+            <td>{{ rooms[i][3] }}</td>
+            <td>{{ rooms[i][5] }}</td>
+            <td>{{ rooms[i][6] }}</td>
+            <td>
+                <form action="/rooms" method="post">
+                    <input type="submit" name="submit" value="{{ rooms[i][0] }}" placeholder="Delete">  
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                </form>
+        </td>
+        </tr>
+        {%endfor%}
+    </table>
+    
+</body>
+</html>
